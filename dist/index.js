@@ -28,7 +28,7 @@ app.use("/app", middlewareMetricsInc); // увеличивает счетчик
 app.use("/app", express.static("./src/app")); // отдаёт сайт
 // --- ADMIN ---
 app.get("/admin/metrics", adminMetricsHandler);
-app.get("/admin/reset", adminResetHandler);
+app.post("/admin/reset", adminResetHandler);
 app.get("/admin/healthz", handlerReadiness);
 app.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);

@@ -1,12 +1,35 @@
 import express from "express";
+import fs from "fs";
+import { middlewareMetricsInc } from "./middlewareMetricsInc.js";
+import { adminMetricsHandler } from "./adminMetricsHandler.js";
+import { adminResetHandler } from "./adminResetHandler.js";
+// === middleware must be defined BEFORE app.use ===
+export function middlewareLogResponses(req, res, next) {
+    res.on("finish", () => {
+        const statusCode = res.statusCode;
+        const method = req.method;
+        const url = req.url;
+        if (statusCode !== 200) {
+            const log = `[NON-OK] ${method} ${url} - Status: ${statusCode}\n`;
+            fs.appendFileSync("server.log", log);
+        }
+    });
+    next();
+}
 const app = express();
 const PORT = 8080;
 function handlerReadiness(_req, res) {
     res.set("Content-Type", "text/plain");
     res.send("OK");
 }
-app.use("/app", express.static("./src/app"));
-app.get("/healthz", handlerReadiness);
+app.use(middlewareLogResponses);
+// --- FILE SERVER ---
+app.use("/app", middlewareMetricsInc); // увеличивает счетчик
+app.use("/app", express.static("./src/app")); // отдаёт сайт
+// --- ADMIN ---
+app.get("/admin/metrics", adminMetricsHandler);
+app.get("/admin/reset", adminResetHandler);
+app.get("/admin/healthz", handlerReadiness);
 app.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
 });

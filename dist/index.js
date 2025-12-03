@@ -1,47 +1,33 @@
 import express from "express";
-import fs from "fs";
-import { middlewareMetricsInc } from "./middlewareMetricsInc.js";
-import { validateChirpHandler } from "./validateChirpHandler.js";
-import { adminMetricsHandler } from "./adminMetricsHandler.js";
-import { adminResetHandler } from "./adminResetHandler.js";
-import { errorHandler } from "./errorHandler.js";
-// === middleware must be defined BEFORE app.use ===
-export function middlewareLogResponses(req, res, next) {
-    res.on("finish", () => {
-        const statusCode = res.statusCode;
-        const method = req.method;
-        const url = req.url;
-        if (statusCode !== 200) {
-            const log = `[NON-OK] ${method} ${url} - Status: ${statusCode}\n`;
-            fs.appendFileSync("server.log", log);
-        }
-    });
-    next();
-}
-// --- Express app ---
+import postgres from "postgres";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
+import { drizzle } from "drizzle-orm/postgres-js";
+import { handlerReadiness } from "./api/readiness.js";
+import { handlerMetrics } from "./api/metrics.js";
+import { handlerReset } from "./api/reset.js";
+import { errorMiddleWare, middlewareLogResponse, middlewareMetricsInc, } from "./api/middleware.js";
+import { handlerCreateChirp } from "./api/chirps.js";
+import { config } from "./config.js";
+import * as schema from "./db/schema.js";
+import { handlerCreateUser } from "./api/users.js";
+const client = postgres(config.db.url);
+export const db = drizzle(client, { schema });
+const migrationClient = postgres(config.db.url, { max: 1 });
+await migrate(drizzle(migrationClient), config.db.migrationConfig);
 const app = express();
-const PORT = 8080;
-// --- Парсер JSON ---
+app.use(middlewareLogResponse);
 app.use(express.json());
-// --- Логирование всех ответов ---
-app.use(middlewareLogResponses);
-// --- Обработчик готовности ---
-function handlerReadiness(_req, res) {
-    res.set("Content-Type", "text/plain");
-    res.send("OK");
-}
-// === FILE SERVER ===
-app.use("/app", middlewareMetricsInc); // увеличивает счётчик
-app.use("/app", express.static("./src/app")); // отдаёт сайт
-// === ADMIN ===
-app.get("/admin/metrics", adminMetricsHandler);
-app.post("/admin/reset", adminResetHandler); // теперь только POST
-app.get("/admin/healthz", handlerReadiness);
-// === API ===
-app.post("/api/validate_chirp", validateChirpHandler);
-// --- Middleware для обработки ошибок ---
-app.use(errorHandler);
-// --- Запуск сервера ---
-app.listen(PORT, () => {
-    console.log(`Server is running at http://localhost:${PORT}`);
+app.use("/app", middlewareMetricsInc, express.static("./src/app"));
+app.get("/api/healthz", (req, res, next) => {
+    Promise.resolve(handlerReadiness(req, res)).catch(next);
+});
+app.get("/admin/metrics", (req, res, next) => {
+    Promise.resolve(handlerMetrics(req, res)).catch(next);
+});
+app.post("/admin/reset", handlerReset);
+app.post("/api/chirps", handlerCreateChirp);
+app.use(errorMiddleWare);
+app.post("/api/users", handlerCreateUser);
+app.listen(config.api.port, () => {
+    console.log(`Server is running at http://localhost:${config.api.port}`);
 });

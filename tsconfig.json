@@ -1,12 +1,11 @@
 {
   "compilerOptions": {
-    "types": ["node"],
     "target": "esnext",
     "module": "esnext",
+    "moduleResolution": "Node",
     "rootDir": "./src",
     "outDir": "./dist",
     "strict": true,
-    "moduleResolution": "Node",
     "esModuleInterop": true,
     "skipLibCheck": true
   },

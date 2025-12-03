@@ -1,13 +1,23 @@
-import express, {NextFunction, Request, Response } from "express";
+import dotenv from 'dotenv';
+import path from 'path';
 
+// Загружаем .env из корня проекта
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
-export type APIConfig = {
-    fileserverHits: number;
-};
-
-export const config: APIConfig = {
-    fileserverHits: 0,
-};
-function middlewareMetricsInc(req: Request, res: Response, next: NextFunction) {
-
+function envOrThrow(key: string) {
+    const value = process.env[key];
+    if (!value) throw new Error(`Environment variable ${key} is not set`);
+    return value;
 }
+
+export const config = {
+    api: {
+        port: Number(envOrThrow("PORT")),
+        fileServerHits: 0,
+    },
+    db: {
+        url: envOrThrow("DB_URL"),
+        migrationConfig: { migrationsFolder: "./src/db/migrations" },
+    },
+    platform: process.env.PLATFORM || "prod",
+};
